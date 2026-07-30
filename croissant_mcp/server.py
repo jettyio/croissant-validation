@@ -138,11 +138,19 @@ def croissant_run_status(trajectory_id: str) -> dict[str, Any]:
         "error": trajectory.get("error"),
         "files": files,
     }
-    if status == "completed" and not any(f.endswith("croissant.json") for f in files):
-        result["warning"] = (
-            "Run reports 'completed' but produced no croissant.json — the agent likely failed. "
-            "Check `error` or re-launch."
-        )
+    if status == "completed":
+        expected = ["croissant.json", "summary.md", "validation_report.json"]
+        missing = [name for name in expected if not any(f.endswith(name) for f in files)]
+        if "croissant.json" in missing:
+            result["warning"] = (
+                "Run reports 'completed' but produced no croissant.json — the agent likely failed. "
+                "Check `error` or re-launch."
+            )
+        elif missing:
+            result["warning"] = (
+                f"Run completed but is missing expected outputs: {missing}. The agent may have "
+                "stopped before its own validation pass — re-validate croissant.json before trusting it."
+            )
     return result
 
 

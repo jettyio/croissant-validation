@@ -64,6 +64,12 @@ def validate_document(document: dict[str, Any]) -> ValidationReport:
         )
     except Exception as e:  # mlcroissant can raise bare exceptions on malformed JSON-LD
         errors.append(f"{type(e).__name__}: {e}")
+        if "_MISSING_TYPE" in str(e):
+            # mlcroissant crashes (rather than reporting) on malformed `references`
+            errors.append(
+                'Hint: a field\'s `references` is likely malformed — use `"references": {"field": {"@id": "record_set/field"}}`, '
+                'not a bare `{"@id": ...}`.'
+            )
         checks.append(
             Check(
                 name="croissant_schema",
