@@ -63,7 +63,7 @@ Layout:
 
 - `croissant_mcp/validation.py` — mlcroissant-backed validation (JSON well-formedness → Croissant schema; warnings surfaced from `mlcroissant`'s issue tracker)
 - `croissant_mcp/server.py` — `MCPServer` definition, tools, landing page, and the stateless Streamable HTTP ASGI app (`stateless_http=True, json_response=True`)
-- `api/index.py` — Vercel entrypoint
+- `main.py` — Vercel entrypoint (the Python backend builder serves the ASGI app on all routes)
 - `examples/` — a valid Croissant file ([Titanic, from the MLCommons repo](https://github.com/mlcommons/croissant/tree/main/datasets/1.0/titanic)) and an invalid variant (`invalid-not-a-dataset.json`, missing its `@type`)
 
 Record-set generation checks (actually materializing data) are intentionally out of scope here — they can download arbitrarily large files, which doesn't belong in a serverless request. Schema validation is the static contract check.
