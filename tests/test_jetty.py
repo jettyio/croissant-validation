@@ -49,6 +49,8 @@ def test_launch_run_tolerates_500_with_trajectory(monkeypatch):
         assert request.url.path == "/v1/chat/completions"
         body = request.read().decode()
         assert '"runbook":true' in body
+        assert '"model":"gpt-5.6-terra"' in body
+        assert '"agent":"codex"' in body
         return httpx.Response(
             500,
             json={"jetty_metadata": {"workflow_id": "wf--abc--traj123", "trajectory_id": "traj123"}},

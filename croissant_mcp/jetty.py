@@ -21,7 +21,10 @@ FLOWS_API = "https://flows-api.jetty.io"
 COLLECTION = "pdf2croissant"
 TASK = "pdf2mlcroissant"
 SNAPSHOT = "python312-uv"
-MODEL = "claude-sonnet-4-6"
+# Internal choice, deliberately not exposed through the MCP tool surface.
+# The request's agent/model override the runbook frontmatter.
+AGENT = "codex"
+MODEL = "gpt-5.6-terra"
 RESULTS_DIR = "/app/results"
 
 _PDF_MAX_BYTES = 15 * 1024 * 1024
@@ -123,6 +126,7 @@ def launch_run(
         "stream": False,
         "jetty": {
             "runbook": True,
+            "agent": AGENT,
             "collection": COLLECTION,
             "task": TASK,
             "snapshot": SNAPSHOT,
