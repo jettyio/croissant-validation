@@ -22,13 +22,12 @@ COLLECTION = "pdf2croissant"
 TASK = "pdf2mlcroissant"
 SNAPSHOT = "python312-uv"
 # Internal choice, deliberately not exposed through the MCP tool surface.
-# The request's agent/model override the runbook frontmatter. Codex runs via
-# OpenRouter (vendor-prefixed model id): the codex CLI ignores
-# OPENAI_BASE_URL, but mise's codex runner writes explicit OpenRouter routing
-# into the CLI's config.toml when model_provider is "openrouter".
+# The request's agent/model override the runbook frontmatter. Native OpenAI:
+# credentials come from the collection's provider-token config on the Jetty
+# side, not from anything this server sends.
 AGENT = "codex"
-MODEL = "openai/gpt-5.6-terra"
-MODEL_PROVIDER = "openrouter"
+MODEL = "gpt-5.6-terra"
+MODEL_PROVIDER = "openai"
 RESULTS_DIR = "/app/results"
 
 _PDF_MAX_BYTES = 15 * 1024 * 1024
