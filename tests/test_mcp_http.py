@@ -50,7 +50,13 @@ def test_tools_list_without_handshake(client):
     assert resp.status_code == 200, resp.text
     body = resp.json()
     names = {t["name"] for t in body["result"]["tools"]}
-    assert names == {"validate_croissant", "validate_croissant_url"}
+    assert names == {
+        "validate_croissant",
+        "validate_croissant_url",
+        "pdf_to_croissant",
+        "croissant_run_status",
+        "croissant_run_result",
+    }
 
 
 def test_tools_call_valid_document(client):

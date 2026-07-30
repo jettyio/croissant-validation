@@ -16,6 +16,11 @@ This repo is exactly that: the [MCP Python SDK v2](https://github.com/modelconte
 |------|-------------|
 | `validate_croissant` | Validate a Croissant JSON-LD document (object or JSON string) against the Croissant schema. Returns per-check results, blocking `errors`, and non-blocking `warnings`. |
 | `validate_croissant_url` | Fetch metadata from a URL (e.g. a Hugging Face dataset's `/croissant` endpoint) and validate it. |
+| `pdf_to_croissant` | Generate Croissant metadata from an academic paper: give it a PDF URL and a [Jetty](https://jetty.io) agent in an isolated sandbox reads the paper, extracts dataset metadata, writes `croissant.json`, and validates it — the MCP version of [mlcroissant.jetty.bot](https://mlcroissant.jetty.bot). Runs take 2–5 minutes. |
+| `croissant_run_status` | Poll a running `pdf_to_croissant` job. Done when status is `completed` and `croissant.json` is in `files`. |
+| `croissant_run_result` | Fetch an output file from a completed run — `croissant.json` comes back parsed and re-validated by this server's own validator. |
+
+The generation tools mirror the API flow of [jettyio/pdf2croissant](https://github.com/jettyio/pdf2croissant) (upload → runbook launch → trajectory poll → file download) and vendor its [runbook](croissant_mcp/pdf2croissant_runbook.md) verbatim. They need a `JETTY_API_TOKEN_PDF2CROISSANT` environment variable; without it, the validation tools still work — validation is pure and stateless.
 
 ## Connect
 

@@ -69,6 +69,12 @@ LANDING_HTML = """<!doctype html>
         <td>Validate a Croissant JSON-LD document (object or JSON string) against the Croissant schema. Returns per-check results, errors, and warnings.</td></tr>
     <tr><td><code>validate_croissant_url</code></td>
         <td>Fetch metadata from a URL (e.g. a Hugging Face dataset's <code>/croissant</code> endpoint) and validate it.</td></tr>
+    <tr><td><code>pdf_to_croissant</code></td>
+        <td>Generate Croissant metadata from an academic paper: give it a PDF URL and a <a href="https://jetty.io">Jetty</a> agent reads the paper, writes <code>croissant.json</code>, and validates it — the MCP version of <a href="https://mlcroissant.jetty.bot">mlcroissant.jetty.bot</a>. Runs take 2–5 minutes.</td></tr>
+    <tr><td><code>croissant_run_status</code></td>
+        <td>Poll a running <code>pdf_to_croissant</code> job.</td></tr>
+    <tr><td><code>croissant_run_result</code></td>
+        <td>Fetch <code>croissant.json</code> (re-validated on the way out), <code>summary.md</code>, or <code>validation_report.json</code> from a completed run.</td></tr>
   </table>
 
   <h2>Connect from Claude Code</h2>
