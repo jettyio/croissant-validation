@@ -25,12 +25,14 @@ COLLECTION = "pdf2croissant"
 TASK = "pdf2mlcroissant"
 SNAPSHOT = "python312-uv"
 # Internal choice, deliberately not exposed through the MCP tool surface.
-# The request's agent/model override the runbook frontmatter. Native OpenAI:
-# credentials come from the collection's provider-token config on the Jetty
-# side, not from anything this server sends.
-AGENT = "codex"
-MODEL = "gpt-5.6-terra"
-MODEL_PROVIDER = "openai"
+# The request's agent/model override the runbook frontmatter. claude-code
+# rides OpenRouter's Anthropic-compatible endpoint; the model id keeps its
+# vendor namespace (mise strips it only for native Anthropic/Bedrock).
+# Credentials come from the collection's environment on the Jetty side
+# (OPENROUTER_API_KEY), not from anything this server sends.
+AGENT = "claude-code"
+MODEL = "anthropic/claude-sonnet-5"
+MODEL_PROVIDER = "openrouter"
 RESULTS_DIR = "/app/results"
 
 PDF_MAX_BYTES = 15 * 1024 * 1024
