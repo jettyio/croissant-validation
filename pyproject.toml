@@ -1,6 +1,6 @@
 [project]
 name = "croissant-validation-mcp"
-version = "0.1.0"
+version = "0.2.0"
 description = "Stateless MCP server (spec 2026-07-28) for validating MLCommons Croissant dataset metadata"
 readme = "README.md"
 requires-python = ">=3.12"

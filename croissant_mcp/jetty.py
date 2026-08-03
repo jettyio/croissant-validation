@@ -8,6 +8,9 @@ output files. The runbook is vendored verbatim from jettyio/pdf2croissant.
 
 from __future__ import annotations
 
+import base64
+import hashlib
+import hmac
 import os
 import re
 from pathlib import Path
@@ -30,7 +33,7 @@ MODEL = "gpt-5.6-terra"
 MODEL_PROVIDER = "openai"
 RESULTS_DIR = "/app/results"
 
-_PDF_MAX_BYTES = 15 * 1024 * 1024
+PDF_MAX_BYTES = 15 * 1024 * 1024
 _USER_AGENT = f"croissant-validation-mcp/{__version__} (+https://croissant-validation.jetty.bot)"
 _RUNBOOK_PATH = Path(__file__).parent / "pdf2croissant_runbook.md"
 
@@ -59,6 +62,14 @@ def _render_runbook(template_vars: dict[str, str]) -> str:
     return re.sub(r"\{\{(\w+)\}\}", lambda m: template_vars.get(m.group(1), m.group(0)), raw)
 
 
+def sanitize_filename(name: str) -> str:
+    """Storage-safe .pdf filename: basename only, simple ASCII."""
+    filename = Path(name).name or "paper.pdf"
+    if not filename.lower().endswith(".pdf"):
+        filename += ".pdf"
+    return re.sub(r"[^A-Za-z0-9._-]", "_", filename)
+
+
 def download_pdf(pdf_url: str) -> tuple[bytes, str]:
     """Download a PDF (15 MB cap) and return (content, filename)."""
     with httpx.Client(
@@ -71,18 +82,13 @@ def download_pdf(pdf_url: str) -> tuple[bytes, str]:
             body = b""
             for chunk in response.iter_bytes():
                 body += chunk
-                if len(body) > _PDF_MAX_BYTES:
-                    raise JettyError(f"PDF exceeds the {_PDF_MAX_BYTES // (1024 * 1024)} MB limit.")
+                if len(body) > PDF_MAX_BYTES:
+                    raise JettyError(f"PDF exceeds the {PDF_MAX_BYTES // (1024 * 1024)} MB limit.")
 
     if not body.startswith(b"%PDF"):
         raise JettyError("The URL did not return a PDF (missing %PDF header).")
 
-    filename = Path(httpx.URL(pdf_url).path).name or "paper.pdf"
-    if not filename.lower().endswith(".pdf"):
-        filename += ".pdf"
-    # Storage-safe name: keep it simple ASCII
-    filename = re.sub(r"[^A-Za-z0-9._-]", "_", filename)
-    return body, filename
+    return body, sanitize_filename(httpx.URL(pdf_url).path)
 
 
 def upload_pdf(content: bytes, filename: str) -> list[str]:
@@ -95,6 +101,41 @@ def upload_pdf(content: bytes, filename: str) -> list[str]:
         if response.status_code >= 400:
             raise JettyError(f"Upload failed: {response.status_code} {response.text[:300]}")
         return response.json()["file_paths"]
+
+
+def _upload_signing_key() -> bytes:
+    # Derived from the Jetty token so the stateless server needs no extra
+    # secret: an upload id must be mintable and verifiable across serverless
+    # instances without any shared session store.
+    return hashlib.sha256(b"croissant-mcp-upload-id:" + _token().encode()).digest()
+
+
+def _b64url(raw: bytes) -> str:
+    return base64.urlsafe_b64encode(raw).decode().rstrip("=")
+
+
+def _b64url_decode(text: str) -> bytes:
+    return base64.urlsafe_b64decode(text + "=" * (-len(text) % 4))
+
+
+def sign_upload_id(file_path: str) -> str:
+    """Encode a storage path as a self-contained, tamper-evident upload id."""
+    raw = file_path.encode()
+    sig = hmac.new(_upload_signing_key(), raw, hashlib.sha256).digest()[:16]
+    return f"{_b64url(raw)}.{_b64url(sig)}"
+
+
+def verify_upload_id(upload_id: str) -> str:
+    """Decode an upload id back to its storage path, rejecting anything not minted by us."""
+    try:
+        payload, sig = upload_id.split(".", 1)
+        raw = _b64url_decode(payload)
+        expected = hmac.new(_upload_signing_key(), raw, hashlib.sha256).digest()[:16]
+        if not hmac.compare_digest(_b64url_decode(sig), expected):
+            raise ValueError
+        return raw.decode()
+    except (ValueError, UnicodeDecodeError):
+        raise JettyError("Invalid upload_id — obtain one by POSTing the PDF to /upload.") from None
 
 
 def launch_run(

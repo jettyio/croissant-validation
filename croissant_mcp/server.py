@@ -14,7 +14,7 @@ import httpx
 from mcp.server import MCPServer
 from mcp.server.transport_security import TransportSecuritySettings
 from starlette.requests import Request
-from starlette.responses import HTMLResponse
+from starlette.responses import HTMLResponse, JSONResponse
 
 from croissant_mcp import __version__, jetty
 from croissant_mcp.landing import LANDING_HTML
@@ -42,7 +42,11 @@ mcp = MCPServer(
         "To generate Croissant metadata from an academic paper, call "
         "`pdf_to_croissant` with the paper's PDF URL — it launches a Jetty "
         "agent run (2–5 minutes). Poll `croissant_run_status` until it "
-        "completes, then fetch the validated file with `croissant_run_result`."
+        "completes, then fetch the validated file with `croissant_run_result`. "
+        "For a local PDF with no public URL, first POST the file to "
+        "https://croissant-validation.jetty.bot/upload (multipart field "
+        "`file`, e.g. `curl -F file=@paper.pdf .../upload`), then pass the "
+        "returned `upload_id` to `pdf_to_croissant` instead of `pdf_url`."
     ),
 )
 
@@ -96,11 +100,18 @@ def validate_croissant_url(url: str) -> ValidationReport:
 
 
 @mcp.tool()
-def pdf_to_croissant(pdf_url: str, dataset_name: str = "", huggingface_url: str = "") -> dict[str, str]:
+def pdf_to_croissant(
+    pdf_url: str = "", upload_id: str = "", dataset_name: str = "", huggingface_url: str = ""
+) -> dict[str, str]:
     """Generate Croissant metadata from an academic paper: launch a Jetty agent run.
 
-    Downloads the PDF from `pdf_url` (15 MB cap), uploads it to Jetty, and
-    starts the pdf2croissant runbook — the same workflow behind
+    Provide the paper one of two ways (exactly one is required):
+    - `pdf_url` — a public URL; the server downloads it (15 MB cap).
+    - `upload_id` — for local PDFs: first POST the file to
+      https://croissant-validation.jetty.bot/upload (multipart field `file`,
+      e.g. `curl -F file=@paper.pdf .../upload`), then pass the returned id.
+
+    Starts the pdf2croissant runbook — the same workflow behind
     https://mlcroissant.jetty.bot. An agent in an isolated sandbox reads the
     paper, extracts dataset metadata, writes `croissant.json`, validates it
     with mlcroissant, and iterates on errors. Runs take 2–5 minutes.
@@ -108,8 +119,14 @@ def pdf_to_croissant(pdf_url: str, dataset_name: str = "", huggingface_url: str 
     Returns a `trajectory_id` — poll `croissant_run_status` with it (every
     ~30s) until the run completes, then call `croissant_run_result`.
     """
-    content, filename = jetty.download_pdf(pdf_url)
-    file_paths = jetty.upload_pdf(content, filename)
+    if bool(pdf_url) == bool(upload_id):
+        raise ValueError("Provide exactly one of pdf_url or upload_id.")
+    if upload_id:
+        file_paths = [jetty.verify_upload_id(upload_id)]
+        filename = file_paths[0].rsplit("/", 1)[-1]
+    else:
+        content, filename = jetty.download_pdf(pdf_url)
+        file_paths = jetty.upload_pdf(content, filename)
     run = jetty.launch_run(file_paths, filename, dataset_name, huggingface_url)
     return {
         **run,
@@ -179,6 +196,54 @@ def croissant_run_result(trajectory_id: str, filename: str = "croissant.json") -
 @mcp.custom_route("/", methods=["GET"])
 async def homepage(request: Request) -> HTMLResponse:
     return HTMLResponse(LANDING_HTML)
+
+
+@mcp.custom_route("/upload", methods=["POST"])
+async def upload(request: Request) -> JSONResponse:
+    """Stage a local PDF for `pdf_to_croissant` — the file-upload side door.
+
+    MCP has no client→server file-transfer primitive, so local files come in
+    over plain HTTP instead: multipart field `file` (curl -F file=@paper.pdf)
+    or the raw request body. Returns a signed `upload_id` that
+    `pdf_to_croissant` accepts in place of `pdf_url`.
+    """
+    filename = ""
+    if request.headers.get("content-type", "").startswith("multipart/"):
+        form = await request.form()
+        part = form.get("file")
+        if part is None or isinstance(part, str):
+            return JSONResponse(
+                {"error": "Send the PDF as multipart field 'file' (curl -F file=@paper.pdf) or as the raw request body."},
+                status_code=400,
+            )
+        content = await part.read()
+        filename = part.filename or ""
+    else:
+        content = await request.body()
+        filename = request.query_params.get("filename", "")
+
+    if not content.startswith(b"%PDF"):
+        return JSONResponse({"error": "Not a PDF (missing %PDF header)."}, status_code=400)
+    if len(content) > jetty.PDF_MAX_BYTES:
+        return JSONResponse(
+            {"error": f"PDF exceeds the {jetty.PDF_MAX_BYTES // (1024 * 1024)} MB limit."},
+            status_code=413,
+        )
+
+    safe_name = jetty.sanitize_filename(filename)
+    try:
+        file_paths = jetty.upload_pdf(content, safe_name)
+    except jetty.JettyError as e:
+        return JSONResponse({"error": str(e)}, status_code=502)
+
+    return JSONResponse(
+        {
+            "upload_id": jetty.sign_upload_id(file_paths[0]),
+            "filename": safe_name,
+            "size_bytes": len(content),
+            "next": "Call the pdf_to_croissant MCP tool with this upload_id (instead of pdf_url).",
+        }
+    )
 
 
 def build_app():

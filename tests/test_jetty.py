@@ -95,3 +95,35 @@ def test_missing_token(monkeypatch):
     monkeypatch.delenv("JETTY_API_TOKEN_PDF2CROISSANT")
     with pytest.raises(jetty.JettyError, match="JETTY_API_TOKEN_PDF2CROISSANT"):
         jetty._token()
+
+
+def test_upload_id_roundtrip():
+    path = "pdf2croissant/uploads/abc123/paper.pdf"
+    assert jetty.verify_upload_id(jetty.sign_upload_id(path)) == path
+
+
+def test_upload_id_rejects_tampered_path():
+    upload_id = jetty.sign_upload_id("pdf2croissant/uploads/abc123/paper.pdf")
+    payload, sig = upload_id.split(".", 1)
+    forged = jetty._b64url(b"pdf2croissant/uploads/OTHER/paper.pdf") + "." + sig
+    with pytest.raises(jetty.JettyError, match="Invalid upload_id"):
+        jetty.verify_upload_id(forged)
+
+
+def test_upload_id_rejects_garbage():
+    for bogus in ("", "no-dot", "not!base64.stuff", "YWJj.YWJj"):
+        with pytest.raises(jetty.JettyError, match="Invalid upload_id"):
+            jetty.verify_upload_id(bogus)
+
+
+def test_upload_id_key_depends_on_token(monkeypatch):
+    upload_id = jetty.sign_upload_id("storage/paper.pdf")
+    monkeypatch.setenv("JETTY_API_TOKEN_PDF2CROISSANT", "different-token")
+    with pytest.raises(jetty.JettyError, match="Invalid upload_id"):
+        jetty.verify_upload_id(upload_id)
+
+
+def test_sanitize_filename():
+    assert jetty.sanitize_filename("/tmp/My Paper (v2).pdf") == "My_Paper__v2_.pdf"
+    assert jetty.sanitize_filename("article/10.1088/pdf") == "pdf.pdf"
+    assert jetty.sanitize_filename("") == "paper.pdf"

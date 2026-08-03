@@ -70,12 +70,22 @@ LANDING_HTML = """<!doctype html>
     <tr><td><code>validate_croissant_url</code></td>
         <td>Fetch metadata from a URL (e.g. a Hugging Face dataset's <code>/croissant</code> endpoint) and validate it.</td></tr>
     <tr><td><code>pdf_to_croissant</code></td>
-        <td>Generate Croissant metadata from an academic paper: give it a PDF URL and a <a href="https://jetty.io">Jetty</a> agent reads the paper, writes <code>croissant.json</code>, and validates it — the MCP version of <a href="https://mlcroissant.jetty.bot">mlcroissant.jetty.bot</a>. Runs take 2–5 minutes.</td></tr>
+        <td>Generate Croissant metadata from an academic paper: give it a PDF URL (or an <code>upload_id</code>, below) and a <a href="https://jetty.io">Jetty</a> agent reads the paper, writes <code>croissant.json</code>, and validates it — the MCP version of <a href="https://mlcroissant.jetty.bot">mlcroissant.jetty.bot</a>. Runs take 2–5 minutes.</td></tr>
     <tr><td><code>croissant_run_status</code></td>
         <td>Poll a running <code>pdf_to_croissant</code> job.</td></tr>
     <tr><td><code>croissant_run_result</code></td>
         <td>Fetch <code>croissant.json</code> (re-validated on the way out), <code>summary.md</code>, or <code>validation_report.json</code> from a completed run.</td></tr>
   </table>
+
+  <h2>Local PDFs</h2>
+  <p>MCP has no file-upload primitive, so local papers come in over plain
+  HTTP. POST the PDF to <code>/upload</code>, then pass the returned
+  <code>upload_id</code> to <code>pdf_to_croissant</code> instead of
+  <code>pdf_url</code>:</p>
+  <pre><code>curl -sS -F "file=@paper.pdf" \\
+  https://croissant-validation.jetty.bot/upload</code></pre>
+  <p>Hosted uploads are limited to ~4.5&nbsp;MB per request; larger papers
+  (up to 15&nbsp;MB) should go through <code>pdf_url</code>.</p>
 
   <h2>Connect from Claude Code</h2>
   <pre><code>claude mcp add --transport http croissant-validator \\
